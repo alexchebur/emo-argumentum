@@ -106,6 +106,8 @@
             cursor: pointer;
             box-shadow: 0 6px 15px rgba(83, 114, 240, 0.4);
             transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 10px;
         }
 
         .spin-button:hover {
@@ -162,6 +164,9 @@
         </div>
         
         <button class="spin-button" id="spinButton">Крутите барабан!</button>
+        <button class="spin-button" id="speakButton" style="background: linear-gradient(to right, #6a11cb, #2575fc);">
+            Озвучить аргумент
+        </button>
     </div>
 
     <script>
@@ -215,6 +220,7 @@
             const slot3 = document.getElementById('slot3');
             const finalArgument = document.getElementById('finalArgument');
             const spinButton = document.getElementById('spinButton');
+            const speakButton = document.getElementById('speakButton');
 
             let isSpinning = false;
 
@@ -232,11 +238,9 @@
                     function updateFrame(currentTime) {
                         const elapsed = currentTime - startTime;
                         if (elapsed < duration) {
-                            // Быстрая смена значений во время прокрутки
                             contentElement.textContent = getRandomItem(values);
                             requestAnimationFrame(updateFrame);
                         } else {
-                            // Финальное значение
                             const finalValue = getRandomItem(values);
                             contentElement.textContent = finalValue;
                             contentElement.classList.add('spinning');
@@ -251,29 +255,65 @@
                 });
             }
 
+            // Функция озвучивания текста
+            function speakText(text) {
+                window.speechSynthesis.cancel(); // Отменяем предыдущее озвучивание
+
+                const utterance = new SpeechSynthesisUtterance(text);
+
+                // Ждём загрузки голосов
+                const setVoice = () => {
+                    const voices = window.speechSynthesis.getVoices();
+                    const preferredVoice = voices.find(v => 
+                        v.lang.includes('ru') || 
+                        v.name.toLowerCase().includes('yuri') || 
+                        v.name.toLowerCase().includes('svetlana') ||
+                        v.name.toLowerCase().includes('aleksandr')
+                    );
+                    utterance.voice = preferredVoice || voices[0] || null;
+                };
+
+                setVoice();
+                if (!utterance.voice) {
+                    window.speechSynthesis.onvoiceschanged = () => {
+                        setVoice();
+                        window.speechSynthesis.speak(utterance);
+                    };
+                } else {
+                    window.speechSynthesis.speak(utterance);
+                }
+            }
+
+            // Загрузка голосов (для надёжности)
+            if (window.speechSynthesis.onvoiceschanged === undefined) {
+                window.speechSynthesis.onvoiceschanged = () => {};
+            }
+
             // Основная функция запуска "прокрутки"
             async function spinSlots() {
                 if (isSpinning) return;
                 
                 isSpinning = true;
                 spinButton.disabled = true;
+                speakButton.disabled = true;
                 finalArgument.textContent = "Формируем ваш аргумент...";
                 
                 try {
-                    // Извлекаем данные для каждого столбца
                     const column1 = argumentsData.map(row => row[0]);
                     const column2 = argumentsData.map(row => row[1]);
                     const column3 = argumentsData.map(row => row[2]);
                     
-                    // Запускаем анимацию для каждого слота
                     const [result1, result2, result3] = await Promise.all([
                         animateSlot(slot1, column1),
                         animateSlot(slot2, column2),
                         animateSlot(slot3, column3)
                     ]);
                     
-                    // Формируем итоговый аргумент
-                    finalArgument.textContent = `${result1} ${result2} ${result3}`;
+                    const fullText = `${result1} ${result2} ${result3}`;
+                    finalArgument.textContent = fullText;
+                    
+                    // Можно раскомментировать, чтобы озвучивалось автоматически:
+                    // speakText(fullText);
                     
                 } catch (error) {
                     console.error('Ошибка при прокрутке:', error);
@@ -281,11 +321,22 @@
                 } finally {
                     isSpinning = false;
                     spinButton.disabled = false;
+                    speakButton.disabled = false;
                 }
             }
 
-            // Обработчик клика на кнопку
+            // Обработчик клика: генерация
             spinButton.addEventListener('click', spinSlots);
+
+            // Обработчик клика: озвучивание
+            speakButton.addEventListener('click', function() {
+                const text = finalArgument.textContent.trim();
+                if (text && text !== "Ваш эмоциональный аргумент появится здесь") {
+                    speakText(text);
+                } else {
+                    alert("Сначала сгенерируйте аргумент!");
+                }
+            });
         });
     </script>
 </body>
