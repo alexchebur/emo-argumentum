@@ -119,6 +119,17 @@
             transform: translateY(1px);
         }
 
+        .voice-select {
+            margin: 15px 0;
+            padding: 12px;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            border: 2px solid #5372F0;
+            width: 100%;
+            max-width: 400px;
+            background: #f8f9ff;
+        }
+
         .spinning {
             animation: spin 0.5s ease-out;
         }
@@ -164,6 +175,11 @@
         </div>
         
         <button class="spin-button" id="spinButton">Крутите барабан!</button>
+        
+        <select class="voice-select" id="voiceSelect">
+            <option value="">Загрузка голосов...</option>
+        </select>
+
         <button class="spin-button" id="speakButton" style="background: linear-gradient(to right, #6a11cb, #2575fc);">
             Озвучить аргумент
         </button>
@@ -221,8 +237,10 @@
             const finalArgument = document.getElementById('finalArgument');
             const spinButton = document.getElementById('spinButton');
             const speakButton = document.getElementById('speakButton');
+            const voiceSelect = document.getElementById('voiceSelect');
 
             let isSpinning = false;
+            let availableVoices = [];
 
             // Функция для получения случайного элемента из массива
             function getRandomItem(array) {
@@ -255,38 +273,60 @@
                 });
             }
 
-            // Функция озвучивания текста
-            function speakText(text) {
-                window.speechSynthesis.cancel(); // Отменяем предыдущее озвучивание
+            // Загрузка голосов
+            function loadVoices() {
+                availableVoices = window.speechSynthesis.getVoices().filter(voice => 
+                    voice.lang.includes('ru') || voice.lang.includes('ru-RU')
+                );
 
-                const utterance = new SpeechSynthesisUtterance(text);
-
-                // Ждём загрузки голосов
-                const setVoice = () => {
-                    const voices = window.speechSynthesis.getVoices();
-                    const preferredVoice = voices.find(v => 
-                        v.lang.includes('ru') || 
-                        v.name.toLowerCase().includes('yuri') || 
-                        v.name.toLowerCase().includes('svetlana') ||
-                        v.name.toLowerCase().includes('aleksandr')
-                    );
-                    utterance.voice = preferredVoice || voices[0] || null;
-                };
-
-                setVoice();
-                if (!utterance.voice) {
-                    window.speechSynthesis.onvoiceschanged = () => {
-                        setVoice();
-                        window.speechSynthesis.speak(utterance);
-                    };
-                } else {
-                    window.speechSynthesis.speak(utterance);
+                // Если русских голосов нет — берём все
+                if (availableVoices.length === 0) {
+                    availableVoices = window.speechSynthesis.getVoices();
                 }
+
+                // Очистка списка
+                voiceSelect.innerHTML = '';
+                
+                if (availableVoices.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'Голоса не найдены';
+                    voiceSelect.appendChild(option);
+                    return;
+                }
+
+                // Добавляем голоса в список
+                availableVoices.forEach((voice, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = `${voice.name} (${voice.lang}) ${voice.voiceURI.includes('native') ? '🔊' : ''}`;
+                    voiceSelect.appendChild(option);
+                });
             }
 
-            // Загрузка голосов (для надёжности)
-            if (window.speechSynthesis.onvoiceschanged === undefined) {
-                window.speechSynthesis.onvoiceschanged = () => {};
+            // Инициализация голосов
+            loadVoices();
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = loadVoices;
+            }
+
+            // Функция озвучивания текста
+            function speakText(text) {
+                window.speechSynthesis.cancel();
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                const selectedIndex = voiceSelect.value;
+
+                if (selectedIndex !== '' && availableVoices[selectedIndex]) {
+                    utterance.voice = availableVoices[selectedIndex];
+                } else {
+                    utterance.voice = availableVoices[0] || null;
+                }
+
+                utterance.rate = 0.8;   // Медленнее — пафоснее
+                utterance.pitch = 1.05; // Чуть выразительнее
+
+                window.speechSynthesis.speak(utterance);
             }
 
             // Основная функция запуска "прокрутки"
@@ -312,9 +352,6 @@
                     const fullText = `${result1} ${result2} ${result3}`;
                     finalArgument.textContent = fullText;
                     
-                    // Можно раскомментировать, чтобы озвучивалось автоматически:
-                    // speakText(fullText);
-                    
                 } catch (error) {
                     console.error('Ошибка при прокрутке:', error);
                     finalArgument.textContent = "Произошла ошибка. Попробуйте еще раз!";
@@ -325,10 +362,9 @@
                 }
             }
 
-            // Обработчик клика: генерация
+            // Обработчики событий
             spinButton.addEventListener('click', spinSlots);
 
-            // Обработчик клика: озвучивание
             speakButton.addEventListener('click', function() {
                 const text = finalArgument.textContent.trim();
                 if (text && text !== "Ваш эмоциональный аргумент появится здесь") {
