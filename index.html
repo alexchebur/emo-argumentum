@@ -286,7 +286,7 @@
                     voiceSelect.innerHTML = '';
                     if (availableVoices.length === 0) {
                         const option = document.createElement('option');
-                        option.textContent = 'Русские голоса не найдены';
+                        option.textContent = 'Использовать встроенный голос';
                         voiceSelect.appendChild(option);
                     } else {
                         availableVoices.forEach((voice, index) => {
